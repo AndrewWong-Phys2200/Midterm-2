@@ -1,0 +1,7 @@
+unset key
+set style data line
+
+set term png
+set o "dwarf.png"
+
+p [0:2.5] [1:] "res1" u 2:1 w lp;

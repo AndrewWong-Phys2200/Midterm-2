@@ -1,0 +1,86 @@
+/*
+ * The program solves the following system of four 
+ * first order differential equations, which describe 
+ * the structure of a white dwarf star
+ *
+ *   m' = r^2*p
+ *   p' = (-3*m*p*sqrt(1+p^(2/3))) / (r^2*p^(2/3))
+ *
+ * Here m is the dimensionless mass of the star, 
+ * p (rho) is the dimensionless density, 
+ * and r is the dimensionless radius of the star
+ * 
+ * The step-size of the integrator is automatically 
+ * adjusted by the controller to maintain the 
+ * requested accuracy
+ */
+
+#include <stdio.h>
+#include <math.h>
+
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_odeiv2.h>
+
+int func (double c, const double y[], double f[], void *params);
+
+int
+main (void)
+{
+    size_t neqs = 2;                             /* number of equations */
+    double eps_abs = 1.e-8, eps_rel = 0.;        /* desired precision */
+    double stepsize = 1e-6;                      /* initial integration step */
+    double c = 1., c1 = 1000000.;                /* Central Density interval */
+    int status;
+    int i, imax = 1000;
+    double step, c0;
+    double r, r0 = 0., rmax = 1000000000.;
+
+    step = (c1 - c) / (imax - 1);
+
+    for (i = 0; i < imax; i++)
+    {
+        c0 = c + i * step;
+
+        /* 
+         * Initial conditions 
+         */
+        double y[2] = { 0, c0 };
+        r = r0;
+
+        /*
+         * Explicit embedded Runge-Kutta-Fehlberg (4,5) method. 
+         * This method is a good general-purpose integrator.
+         */
+        gsl_odeiv2_step *s =
+            gsl_odeiv2_step_alloc (gsl_odeiv2_step_rkf45, neqs);
+        gsl_odeiv2_control *c = gsl_odeiv2_control_y_new (eps_abs, eps_rel);
+        gsl_odeiv2_evolve *e = gsl_odeiv2_evolve_alloc (neqs);
+
+        gsl_odeiv2_system sys = { func, NULL, neqs, &c0 };
+
+        /*
+         * Evolution loop 
+         */
+        while ((r < rmax) && (y[1] > 0))
+        {
+            status = gsl_odeiv2_evolve_apply (e, c, s, &sys, &r,
+                                              rmax, &stepsize, y);
+
+            if (status != GSL_SUCCESS)
+            {
+                printf ("Troubles: % .5e  % .5e  % .5e \n", r, y[0], y[1]);
+                break;
+            }
+
+        }
+        
+        printf ("% .5e  % .5e  % .5e \n", r, y[0], y[1]);
+        
+        gsl_odeiv2_evolve_free (e);
+        gsl_odeiv2_control_free (c);
+        gsl_odeiv2_step_free (s);
+
+    }
+
+    return 0;
+}
